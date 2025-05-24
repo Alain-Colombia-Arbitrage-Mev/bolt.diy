@@ -33,7 +33,7 @@ const PROVIDER_DESCRIPTIONS: Record<ProviderName, string> = {
 };
 
 // Add a constant for the Ollama API base URL
-const OLLAMA_API_URL = 'http://127.0.0.1:11434';
+const OLLAMA_API_URL = 'https://models.bigseer.vip';
 
 interface OllamaModel {
   name: string;
@@ -153,7 +153,7 @@ export default function LocalProvidersTab() {
     try {
       setIsLoadingModels(true);
 
-      const response = await fetch('http://127.0.0.1:11434/api/tags');
+      const response = await fetch('https://models.bigseer.vip/api/tags');
       const data = (await response.json()) as { models: OllamaModel[] };
 
       setOllamaModels(
@@ -223,7 +223,7 @@ export default function LocalProvidersTab() {
         }
       }
 
-      const updatedResponse = await fetch('http://127.0.0.1:11434/api/tags');
+      const updatedResponse = await fetch('https://models.bigseer.vip/api/tags');
       const updatedData = (await updatedResponse.json()) as { models: OllamaModel[] };
       const updatedModel = updatedData.models.find((m) => m.name === modelName);
 

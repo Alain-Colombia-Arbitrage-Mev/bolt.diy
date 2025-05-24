@@ -35,6 +35,24 @@ interface ModelInfo {
 
 const POPULAR_MODELS: ModelInfo[] = [
   {
+    name: 'gemma3:27b',
+    desc: "Google's Gemma 3 model (27B parameters)",
+    size: '16GB',
+    tags: ['general', 'large', 'powerful'],
+  },
+  {
+    name: 'devstral:latest',
+    desc: "Mistral's development-focused model",
+    size: '8GB',
+    tags: ['coding', 'development', 'popular'],
+  },
+  {
+    name: 'qwen3:32b',
+    desc: "Alibaba's Qwen 3 model (32B parameters)",
+    size: '20GB',
+    tags: ['general', 'large', 'multilingual'],
+  },
+  {
     name: 'deepseek-coder:6.7b',
     desc: "DeepSeek's code generation model",
     size: '4.1GB',
@@ -53,12 +71,6 @@ const POPULAR_MODELS: ModelInfo[] = [
     tags: ['general', 'popular'],
   },
   {
-    name: 'gemma:7b',
-    desc: "Google's Gemma model",
-    size: '4.0GB',
-    tags: ['general', 'new'],
-  },
-  {
     name: 'codellama:7b',
     desc: "Meta's Code Llama model",
     size: '4.1GB',
@@ -75,18 +87,6 @@ const POPULAR_MODELS: ModelInfo[] = [
     desc: "Microsoft's Phi-2 model",
     size: '2.7GB',
     tags: ['small', 'fast'],
-  },
-  {
-    name: 'qwen:7b',
-    desc: "Alibaba's Qwen model",
-    size: '4.1GB',
-    tags: ['general'],
-  },
-  {
-    name: 'solar:10.7b',
-    desc: "Upstage's Solar model",
-    size: '6.1GB',
-    tags: ['large', 'powerful'],
   },
   {
     name: 'openchat:7b',
@@ -141,11 +141,72 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
   const [installProgress, setInstallProgress] = useState<InstallProgress | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [models, setModels] = useState<ModelInfo[]>(POPULAR_MODELS);
+  const [isLoadingAvailableModels, setIsLoadingAvailableModels] = useState(false);
   const { toast } = useToast();
   const { providers } = useSettings();
 
   // Get base URL from provider settings
-  const baseUrl = providers?.Ollama?.settings?.baseUrl || 'http://127.0.0.1:11434';
+  const baseUrl = providers?.Ollama?.settings?.baseUrl || 'https://models.bigseer.vip';
+
+  // Function to fetch available models from Ollama library
+  const fetchAvailableModels = async () => {
+    try {
+      setIsLoadingAvailableModels(true);
+      
+      // Try to fetch available models from the endpoint
+      const response = await fetch(`${baseUrl}/api/library`);
+      
+      if (!response.ok) {
+        // If library endpoint doesn't exist, use the tags endpoint to get installed models
+        const tagsResponse = await fetch(`${baseUrl}/api/tags`);
+        if (tagsResponse.ok) {
+          const data = (await tagsResponse.json()) as { models: Array<{ name: string; size: number; digest: string; modified_at: string }> };
+          const installedModels = data.models || [];
+          
+          // Update models with the installed ones from the endpoint
+          const endpointModels: ModelInfo[] = installedModels.map((model) => ({
+            name: model.name,
+            desc: `Model from ${baseUrl}`,
+            size: formatBytes(model.size),
+            tags: ['remote', 'available'],
+            installedVersion: model.digest.substring(0, 8),
+          }));
+          
+          // Combine with default models, prioritizing endpoint models
+          const combinedModels = [...endpointModels, ...POPULAR_MODELS.filter(
+            (defaultModel) => !endpointModels.some(
+              (endpointModel) => endpointModel.name === defaultModel.name
+            )
+          )];
+          
+          setModels(combinedModels);
+          toast(`Loaded ${installedModels.length} models from endpoint`);
+        } else {
+          throw new Error('No models endpoint available');
+        }
+      } else {
+        // If library endpoint exists, use it
+        const data = await response.json() as { models: Array<{ name: string; description?: string; size?: number; tags?: string[] }> };
+        const availableModels = data.models || [];
+        
+        const endpointModels: ModelInfo[] = availableModels.map((model) => ({
+          name: model.name,
+          desc: model.description || `Available model from ${baseUrl}`,
+          size: model.size ? formatBytes(model.size) : 'Unknown',
+          tags: model.tags || ['remote', 'available'],
+        }));
+        
+        setModels(endpointModels);
+        toast(`Loaded ${availableModels.length} available models from endpoint`);
+      }
+    } catch (error) {
+      console.error('Error fetching available models:', error);
+      toast('Using default model list - could not fetch from endpoint');
+      // Keep the default models if endpoint fails
+    } finally {
+      setIsLoadingAvailableModels(false);
+    }
+  };
 
   // Function to check installed models and their versions
   const checkInstalledModels = async () => {
@@ -186,6 +247,8 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
   // Check installed models on mount and after installation
   useEffect(() => {
     checkInstalledModels();
+    // Also try to fetch available models from endpoint on first load
+    fetchAvailableModels();
   }, [baseUrl]);
 
   const handleCheckUpdates = async () => {
@@ -391,26 +454,48 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
             <p className="text-sm text-bolt-elements-textSecondary mt-1">Install and manage your Ollama models</p>
           </div>
         </div>
-        <motion.button
-          onClick={handleCheckUpdates}
-          disabled={isChecking}
-          className={classNames(
-            'px-4 py-2 rounded-lg',
-            'bg-purple-500/10 text-purple-500',
-            'hover:bg-purple-500/20',
-            'transition-all duration-200',
-            'flex items-center gap-2',
-          )}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-        >
-          {isChecking ? (
-            <div className="i-ph:spinner-gap-bold animate-spin" />
-          ) : (
-            <div className="i-ph:arrows-clockwise" />
-          )}
-          Check Updates
-        </motion.button>
+        <div className="flex gap-2">
+          <motion.button
+            onClick={fetchAvailableModels}
+            disabled={isLoadingAvailableModels}
+            className={classNames(
+              'px-4 py-2 rounded-lg',
+              'bg-blue-500/10 text-blue-500',
+              'hover:bg-blue-500/20',
+              'transition-all duration-200',
+              'flex items-center gap-2',
+            )}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            {isLoadingAvailableModels ? (
+              <div className="i-ph:spinner-gap-bold animate-spin" />
+            ) : (
+              <div className="i-ph:cloud-arrow-down" />
+            )}
+            Load Models
+          </motion.button>
+          <motion.button
+            onClick={handleCheckUpdates}
+            disabled={isChecking}
+            className={classNames(
+              'px-4 py-2 rounded-lg',
+              'bg-purple-500/10 text-purple-500',
+              'hover:bg-purple-500/20',
+              'transition-all duration-200',
+              'flex items-center gap-2',
+            )}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            {isChecking ? (
+              <div className="i-ph:spinner-gap-bold animate-spin" />
+            ) : (
+              <div className="i-ph:arrows-clockwise" />
+            )}
+            Check Updates
+          </motion.button>
+        </div>
       </div>
 
       <div className="flex gap-4">

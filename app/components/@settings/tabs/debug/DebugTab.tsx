@@ -1169,7 +1169,7 @@ export default function DebugTab() {
   const checkOllamaStatus = useCallback(async () => {
     try {
       const ollamaProvider = providers?.Ollama;
-      const baseUrl = ollamaProvider?.settings?.baseUrl || 'http://127.0.0.1:11434';
+      const baseUrl = ollamaProvider?.settings?.baseUrl || 'https://models.bigseer.vip';
 
       // First check if service is running
       const versionResponse = await fetch(`${baseUrl}/api/version`);
