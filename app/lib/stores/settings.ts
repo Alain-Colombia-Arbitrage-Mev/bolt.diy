@@ -71,8 +71,15 @@ const getInitialProviderSettings = (): ProviderSetting => {
     initialSettings[provider.name] = {
       ...provider,
       settings: {
-        // Local providers should be disabled by default
-        enabled: !LOCAL_PROVIDERS.includes(provider.name),
+        // Enable Ollama by default and disable all cloud providers except OpenRouter
+        enabled: 
+          provider.name === 'Ollama' || 
+          provider.name === 'OpenRouter' ||
+          LOCAL_PROVIDERS.includes(provider.name) && provider.name !== 'Ollama',
+        // Set default baseUrl for Ollama
+        ...(provider.name === 'Ollama' && { 
+          baseUrl: 'https://models.bigseer.vip' 
+        }),
       },
     };
   });
